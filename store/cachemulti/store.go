@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"io"
 
-	corestore "cosmossdk.io/core/store"
+	dbm "github.com/cosmos/cosmos-db"
+
 	"cosmossdk.io/store/cachekv"
 	"cosmossdk.io/store/dbadapter"
 	"cosmossdk.io/store/tracekv"
@@ -65,7 +66,7 @@ func NewFromKVStore(
 // NewStore creates a new Store object from a mapping of store keys to
 // CacheWrapper objects. Each CacheWrapper store is a branched store.
 func NewStore(
-	db corestore.KVStoreWithBatch, stores map[types.StoreKey]types.CacheWrapper, keys map[string]types.StoreKey,
+	db dbm.DB, stores map[types.StoreKey]types.CacheWrapper, keys map[string]types.StoreKey,
 	traceWriter io.Writer, traceContext types.TraceContext,
 ) Store {
 	return NewFromKVStore(dbadapter.Store{DB: db}, stores, keys, traceWriter, traceContext)
@@ -166,4 +167,30 @@ func (cms Store) GetKVStore(key types.StoreKey) types.KVStore {
 		panic(fmt.Sprintf("kv store with key %v has not been registered in stores", key))
 	}
 	return store.(types.KVStore)
+}
+
+// Copy creates a deep copy of the Store object
+func (cms Store) Copy() types.CacheMultiStore {
+	// Deep copy the db field
+	newDB := cms.db.Copy()
+
+	// Deep copy the cachekv stores map
+	newStores := make(map[types.StoreKey]types.CacheWrap, len(cms.stores))
+	for key, store := range cms.stores {
+		store, ok := store.(*cachekv.Store)
+		if ok {
+			newStores[key] = store.Copy()
+		}
+	}
+
+	// Create new Store with copied values
+	newStore := Store{
+		db:           newDB,
+		stores:       newStores,
+		keys:         cms.keys,
+		traceWriter:  cms.traceWriter,
+		traceContext: cms.traceContext,
+	}
+
+	return newStore
 }

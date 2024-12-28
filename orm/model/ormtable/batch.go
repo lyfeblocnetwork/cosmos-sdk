@@ -1,7 +1,6 @@
 package ormtable
 
 import (
-	"cosmossdk.io/core/store"
 	"cosmossdk.io/orm/types/kv"
 )
 
@@ -25,11 +24,11 @@ func newBatchIndexCommitmentWriter(store Backend) *batchIndexCommitmentWriter {
 	}
 }
 
-func (w *batchIndexCommitmentWriter) CommitmentStore() store.KVStore {
+func (w *batchIndexCommitmentWriter) CommitmentStore() kv.Store {
 	return w.commitmentWriter
 }
 
-func (w *batchIndexCommitmentWriter) IndexStore() store.KVStore {
+func (w *batchIndexCommitmentWriter) IndexStore() kv.Store {
 	return w.indexWriter
 }
 

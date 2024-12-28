@@ -16,8 +16,6 @@ import (
 	"cosmossdk.io/x/tx/signing"
 )
 
-const cosmosDecType = "cosmos.Dec"
-
 // MessageEncoder is a function that can encode a protobuf protoreflect.Message to JSON.
 type MessageEncoder func(*Encoder, protoreflect.Message, io.Writer) error
 
@@ -34,10 +32,6 @@ type EncoderOptions struct {
 	// EnumAsString when set will encode enums as strings instead of integers.
 	// Caution: Enabling this option produce different sign bytes.
 	EnumAsString bool
-	// AminoNameAsTypeURL when set will use the amino name as the type URL in the JSON output.
-	// It is useful when using the Amino JSON encoder for non Amino purposes,
-	// such as JSON RPC.
-	AminoNameAsTypeURL bool
 	// TypeResolver is used to resolve protobuf message types by TypeURL when marshaling any packed messages.
 	TypeResolver signing.TypeResolver
 	// FileResolver is used to resolve protobuf file descriptors TypeURL when TypeResolver fails.
@@ -56,7 +50,6 @@ type Encoder struct {
 	doNotSortFields           bool
 	indent                    string
 	enumsAsString             bool
-	aminoNameAsTypeURL        bool
 }
 
 // NewEncoder returns a new Encoder capable of serializing protobuf messages to JSON using the Amino JSON encoding
@@ -70,8 +63,8 @@ func NewEncoder(options EncoderOptions) Encoder {
 	}
 	enc := Encoder{
 		cosmosProtoScalarEncoders: map[string]FieldEncoder{
-			cosmosDecType: cosmosDecEncoder,
-			"cosmos.Int":  cosmosIntEncoder,
+			"cosmos.Dec": cosmosDecEncoder,
+			"cosmos.Int": cosmosIntEncoder,
 		},
 		aminoMessageEncoders: map[string]MessageEncoder{
 			"key_field":        keyFieldEncoder,
@@ -87,12 +80,11 @@ func NewEncoder(options EncoderOptions) Encoder {
 			"google.protobuf.Duration":  marshalDuration,
 			"google.protobuf.Any":       marshalAny,
 		},
-		fileResolver:       options.FileResolver,
-		typeResolver:       options.TypeResolver,
-		doNotSortFields:    options.DoNotSortFields,
-		indent:             options.Indent,
-		enumsAsString:      options.EnumAsString,
-		aminoNameAsTypeURL: options.AminoNameAsTypeURL,
+		fileResolver:    options.FileResolver,
+		typeResolver:    options.TypeResolver,
+		doNotSortFields: options.DoNotSortFields,
+		indent:          options.Indent,
+		enumsAsString:   options.EnumAsString,
 	}
 	return enc
 }
@@ -195,17 +187,9 @@ func (enc Encoder) beginMarshal(msg protoreflect.Message, writer io.Writer, isAn
 	)
 
 	if isAny {
-		if enc.aminoNameAsTypeURL {
-			name, named = getMessageTypeURL(msg), true
-		} else {
-			name, named = getMessageAminoNameAny(msg), true
-		}
+		name, named = getMessageAminoNameAny(msg), true
 	} else {
 		name, named = getMessageAminoName(msg)
-		if enc.aminoNameAsTypeURL {
-			// do not override named
-			name = getMessageTypeURL(msg)
-		}
 	}
 
 	if named {
@@ -270,11 +254,8 @@ func (enc Encoder) marshal(value protoreflect.Value, fd protoreflect.FieldDescri
 }
 
 type nameAndIndex struct {
-	i              int
-	name           string
-	oneof          protoreflect.OneofDescriptor
-	oneofFieldName string
-	oneofTypeName  string
+	i    int
+	name string
 }
 
 func (enc Encoder) marshalMessage(msg protoreflect.Message, writer io.Writer) error {
@@ -305,37 +286,14 @@ func (enc Encoder) marshalMessage(msg protoreflect.Message, writer io.Writer) er
 	indices := make([]*nameAndIndex, 0, fields.Len())
 	for i := 0; i < fields.Len(); i++ {
 		f := fields.Get(i)
-		entry := &nameAndIndex{
-			i:     i,
-			name:  getAminoFieldName(f),
-			oneof: f.ContainingOneof(),
-		}
-
-		if entry.oneof != nil {
-			var err error
-			entry.oneofFieldName, entry.oneofTypeName, err = getOneOfNames(f)
-			if err != nil {
-				return err
-			}
-		}
-
-		indices = append(indices, entry)
+		name := getAminoFieldName(f)
+		indices = append(indices, &nameAndIndex{i: i, name: name})
 	}
 
 	if shouldSortFields := !enc.doNotSortFields; shouldSortFields {
 		sort.Slice(indices, func(i, j int) bool {
 			ni, nj := indices[i], indices[j]
-			niName, njName := ni.name, nj.name
-
-			if indices[i].oneof != nil {
-				niName = indices[i].oneofFieldName
-			}
-
-			if indices[j].oneof != nil {
-				njName = indices[j].oneofFieldName
-			}
-
-			return niName < njName
+			return ni.name < nj.name
 		})
 	}
 
@@ -344,17 +302,22 @@ func (enc Encoder) marshalMessage(msg protoreflect.Message, writer io.Writer) er
 		name := ni.name
 		f := fields.Get(i)
 		v := msg.Get(f)
-		isOneOf := ni.oneof != nil
+		oneof := f.ContainingOneof()
+		isOneOf := oneof != nil
+		oneofFieldName, oneofTypeName, err := getOneOfNames(f)
+		if err != nil && isOneOf {
+			return err
+		}
 		writeNil := false
 
 		if !msg.Has(f) {
 			// msg.WhichOneof(oneof) == nil: no field of the oneof has been set
 			// !emptyOneOfWritten: we haven't written a null for this oneof yet (only write one null per empty oneof)
 			switch {
-			case isOneOf && msg.WhichOneof(ni.oneof) == nil && !emptyOneOfWritten[ni.oneofFieldName]:
-				name = ni.oneofFieldName
+			case isOneOf && msg.WhichOneof(oneof) == nil && !emptyOneOfWritten[oneofFieldName]:
+				name = oneofFieldName
 				writeNil = true
-				emptyOneOfWritten[ni.oneofFieldName] = true
+				emptyOneOfWritten[oneofFieldName] = true
 			case omitEmpty(f):
 				continue
 			case f.Kind() == protoreflect.MessageKind &&
@@ -372,7 +335,7 @@ func (enc Encoder) marshalMessage(msg protoreflect.Message, writer io.Writer) er
 		}
 
 		if isOneOf && !writeNil {
-			_, err = fmt.Fprintf(writer, `"%s":{"type":"%s","value":{`, ni.oneofFieldName, ni.oneofTypeName)
+			_, err = fmt.Fprintf(writer, `"%s":{"type":"%s","value":{`, oneofFieldName, oneofTypeName)
 			if err != nil {
 				return err
 			}
@@ -389,7 +352,7 @@ func (enc Encoder) marshalMessage(msg protoreflect.Message, writer io.Writer) er
 		}
 
 		// encode value
-		if encoder := enc.getFieldEncoder(f); encoder != nil {
+		if encoder := enc.getFieldEncoding(f); encoder != nil {
 			err = encoder(&enc, v, writer)
 			if err != nil {
 				return err

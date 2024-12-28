@@ -3,9 +3,9 @@ package mock
 import (
 	"io"
 
+	dbm "github.com/cosmos/cosmos-db"
 	protoio "github.com/cosmos/gogoproto/io"
 
-	corestore "cosmossdk.io/core/store"
 	"cosmossdk.io/store/metrics"
 	pruningtypes "cosmossdk.io/store/pruning/types"
 	snapshottypes "cosmossdk.io/store/snapshots/types"
@@ -90,7 +90,7 @@ func (ms multiStore) GetCommitStore(key storetypes.StoreKey) storetypes.CommitSt
 	panic("not implemented")
 }
 
-func (ms multiStore) MountStoreWithDB(key storetypes.StoreKey, typ storetypes.StoreType, db corestore.KVStoreWithBatch) {
+func (ms multiStore) MountStoreWithDB(key storetypes.StoreKey, typ storetypes.StoreType, db dbm.DB) {
 	ms.kv[key] = kvStore{store: make(map[string][]byte)}
 }
 
@@ -139,10 +139,6 @@ func (ms multiStore) SetIAVLCacheSize(size int) {
 }
 
 func (ms multiStore) SetIAVLDisableFastNode(disable bool) {
-	panic("not implemented")
-}
-
-func (ms multiStore) SetIAVLSyncPruning(syncPruning bool) {
 	panic("not implemented")
 }
 
@@ -221,7 +217,7 @@ func (kv kvStore) Prefix(prefix []byte) storetypes.KVStore {
 }
 
 func (kv kvStore) Gas(meter storetypes.GasMeter, config storetypes.GasConfig) storetypes.KVStore {
-	panic("not implemented")
+	panic("not implmeneted")
 }
 
 func (kv kvStore) Iterator(start, end []byte) storetypes.Iterator {

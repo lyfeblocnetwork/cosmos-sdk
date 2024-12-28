@@ -1,7 +1,6 @@
 package ormfield
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -70,7 +69,7 @@ func (s NonTerminalStringCodec) Decode(r Reader) (protoreflect.Value, error) {
 	var bz []byte
 	for {
 		b, err := r.ReadByte()
-		if b == 0 || errors.Is(err, io.EOF) {
+		if b == 0 || err == io.EOF {
 			return protoreflect.ValueOfString(string(bz)), err
 		}
 		bz = append(bz, b)
@@ -88,7 +87,7 @@ func (s NonTerminalStringCodec) Encode(value protoreflect.Value, w io.Writer) er
 			return fmt.Errorf("illegal null terminator found in index string: %s", str)
 		}
 	}
-	_, err := w.Write(bz)
+	_, err := w.Write([]byte(str))
 	if err != nil {
 		return err
 	}

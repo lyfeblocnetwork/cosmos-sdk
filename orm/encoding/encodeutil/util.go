@@ -13,10 +13,13 @@ import (
 // This is used for efficient logical decoding of keys.
 func SkipPrefix(r *bytes.Reader, prefix []byte) error {
 	n := len(prefix)
-	// we skip checking the prefix for performance reasons because we assume
-	// that it was checked by the caller
-	_, err := r.Seek(int64(n), io.SeekCurrent)
-	return err
+	if n > 0 {
+		// we skip checking the prefix for performance reasons because we assume
+		// that it was checked by the caller
+		_, err := r.Seek(int64(n), io.SeekCurrent)
+		return err
+	}
+	return nil
 }
 
 // AppendVarUInt32 creates a new key prefix, by encoding and appending a

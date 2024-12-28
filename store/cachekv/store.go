@@ -6,9 +6,10 @@ import (
 	"sort"
 	"sync"
 
+	dbm "github.com/cosmos/cosmos-db"
+
 	"cosmossdk.io/math"
 	"cosmossdk.io/store/cachekv/internal"
-	dbm "cosmossdk.io/store/db"
 	"cosmossdk.io/store/internal/conv"
 	"cosmossdk.io/store/internal/kv"
 	"cosmossdk.io/store/tracekv"
@@ -170,6 +171,38 @@ func (store *Store) CacheWrapWithTrace(w io.Writer, tc types.TraceContext) types
 	return NewStore(tracekv.NewStore(store, w, tc))
 }
 
+// Copy creates a deep copy of the Store object
+func (store *Store) Copy() types.CacheKVStore {
+	store.mtx.Lock()
+	defer store.mtx.Unlock()
+
+	// Copy cache
+	cacheCopy := make(map[string]*cValue, len(store.cache))
+	for key, val := range store.cache {
+		newVal := *val // Create a copy of the cValue
+		cacheCopy[key] = &newVal
+	}
+
+	// Copy unsortedCache
+	unsortedCacheCopy := make(map[string]struct{}, len(store.unsortedCache))
+	for key := range store.unsortedCache {
+		unsortedCacheCopy[key] = struct{}{}
+	}
+
+	// Copy sortedCache
+	sortedCacheCopy := store.sortedCache.Copy()
+
+	// Create new Store with copied values
+	newStore := &Store{
+		cache:         cacheCopy,
+		unsortedCache: unsortedCacheCopy,
+		sortedCache:   sortedCacheCopy,
+		parent:        store.parent,
+	}
+
+	return newStore
+}
+
 //----------------------------------------
 // Iteration
 
@@ -300,9 +333,9 @@ func (store *Store) dirtyItems(start, end []byte) {
 	}
 
 	n := len(store.unsortedCache)
-	unsorted := make([]*kv.Pair, 0) //nolint:staticcheck // We are in store v1.
+	unsorted := make([]*kv.Pair, 0)
 	// If the unsortedCache is too big, its costs too much to determine
-	// what's in the subset we are concerned about.
+	// whats in the subset we are concerned about.
 	// If you are interleaving iterator calls with writes, this can easily become an
 	// O(N^2) overhead.
 	// Even without that, too many range checks eventually becomes more expensive
@@ -312,7 +345,7 @@ func (store *Store) dirtyItems(start, end []byte) {
 			// dbm.IsKeyInDomain is nil safe and returns true iff key is greater than start
 			if dbm.IsKeyInDomain(conv.UnsafeStrToBytes(key), start, end) {
 				cacheValue := store.cache[key]
-				unsorted = append(unsorted, &kv.Pair{Key: []byte(key), Value: cacheValue.value}) //nolint:staticcheck // We are in store v1.
+				unsorted = append(unsorted, &kv.Pair{Key: []byte(key), Value: cacheValue.value})
 			}
 		}
 		store.clearUnsortedCacheSubset(unsorted, stateUnsorted)
@@ -355,18 +388,18 @@ func (store *Store) dirtyItems(start, end []byte) {
 		}
 	}
 
-	kvL := make([]*kv.Pair, 0, 1+endIndex-startIndex) //nolint:staticcheck // We are in store v1.
+	kvL := make([]*kv.Pair, 0, 1+endIndex-startIndex)
 	for i := startIndex; i <= endIndex; i++ {
 		key := strL[i]
 		cacheValue := store.cache[key]
-		kvL = append(kvL, &kv.Pair{Key: []byte(key), Value: cacheValue.value}) //nolint:staticcheck // We are in store v1.
+		kvL = append(kvL, &kv.Pair{Key: []byte(key), Value: cacheValue.value})
 	}
 
 	// kvL was already sorted so pass it in as is.
 	store.clearUnsortedCacheSubset(kvL, stateAlreadySorted)
 }
 
-func (store *Store) clearUnsortedCacheSubset(unsorted []*kv.Pair, sortState sortState) { //nolint:staticcheck // We are in store v1.
+func (store *Store) clearUnsortedCacheSubset(unsorted []*kv.Pair, sortState sortState) {
 	n := len(store.unsortedCache)
 	if len(unsorted) == n { // This pattern allows the Go compiler to emit the map clearing idiom for the entire map.
 		for key := range store.unsortedCache {

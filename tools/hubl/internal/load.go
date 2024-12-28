@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 
+	cockroachdberrors "github.com/cockroachdb/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -16,11 +17,12 @@ import (
 	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/descriptorpb"
 
-	authv1betav1 "cosmossdk.io/api/cosmos/auth/v1beta1"
 	autocliv1 "cosmossdk.io/api/cosmos/autocli/v1"
+	reflectionv2alpha1 "cosmossdk.io/api/cosmos/base/reflection/v2alpha1"
 	reflectionv1 "cosmossdk.io/api/cosmos/reflection/v1"
-	"cosmossdk.io/tools/hubl/internal/config"
 )
+
+const DefaultConfigDirName = ".hubl"
 
 type ChainInfo struct {
 	client *grpc.ClientConn
@@ -28,13 +30,13 @@ type ChainInfo struct {
 	Context   context.Context
 	ConfigDir string
 	Chain     string
-	Config    *config.ChainConfig
+	Config    *ChainConfig
 
 	ProtoFiles    *protoregistry.Files
 	ModuleOptions map[string]*autocliv1.ModuleOptions
 }
 
-func NewChainInfo(configDir, chain string, config *config.ChainConfig) *ChainInfo {
+func NewChainInfo(configDir, chain string, config *ChainConfig) *ChainInfo {
 	return &ChainInfo{
 		Context:   context.Background(),
 		Config:    config,
@@ -45,7 +47,7 @@ func NewChainInfo(configDir, chain string, config *config.ChainConfig) *ChainInf
 
 func (c *ChainInfo) getCacheDir() (string, error) {
 	cacheDir := path.Join(c.ConfigDir, "cache")
-	return cacheDir, os.MkdirAll(cacheDir, 0o750)
+	return cacheDir, os.MkdirAll(cacheDir, 0o755)
 }
 
 func (c *ChainInfo) fdsCacheFilename() (string, error) {
@@ -173,7 +175,7 @@ func (c *ChainInfo) OpenClient() (*grpc.ClientConn, error) {
 		}
 
 		var err error
-		c.client, err = grpc.NewClient(endpoint.Endpoint, grpc.WithTransportCredentials(creds))
+		c.client, err = grpc.Dial(endpoint.Endpoint, grpc.WithTransportCredentials(creds))
 		if err != nil {
 			res = errors.Join(res, err)
 			continue
@@ -182,20 +184,20 @@ func (c *ChainInfo) OpenClient() (*grpc.ClientConn, error) {
 		return c.client, nil
 	}
 
-	return nil, fmt.Errorf("error loading gRPC client: %w", res)
+	return nil, cockroachdberrors.Wrapf(res, "error loading gRPC client")
 }
 
 // getAddressPrefix returns the address prefix of the chain.
 func getAddressPrefix(ctx context.Context, conn grpc.ClientConnInterface) (string, error) {
-	authClient := authv1betav1.NewQueryClient(conn)
-	resp, err := authClient.Bech32Prefix(ctx, &authv1betav1.Bech32PrefixRequest{})
+	reflectionClient := reflectionv2alpha1.NewReflectionServiceClient(conn)
+	resp, err := reflectionClient.GetConfigurationDescriptor(ctx, &reflectionv2alpha1.GetConfigurationDescriptorRequest{})
 	if err != nil {
 		return "", err
 	}
 
-	if resp == nil || resp.Bech32Prefix == "" {
-		return "", errors.New("bech32 account address prefix is not set")
+	if resp == nil || resp.Config == nil || resp.Config.Bech32AccountAddressPrefix == "" {
+		return "", cockroachdberrors.New("bech32 account address prefix is not set")
 	}
 
-	return resp.Bech32Prefix, nil
+	return resp.Config.Bech32AccountAddressPrefix, nil
 }

@@ -2,7 +2,6 @@ package ormkv
 
 import (
 	"bytes"
-	"errors"
 	"io"
 
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -123,7 +122,7 @@ func (cdc *KeyCodec) DecodeKey(r *bytes.Reader) ([]protoreflect.Value, error) {
 	values := make([]protoreflect.Value, 0, n)
 	for i := 0; i < n; i++ {
 		value, err := cdc.fieldCodecs[i].Decode(r)
-		if errors.Is(err, io.EOF) {
+		if err == io.EOF {
 			return values, err
 		} else if err != nil {
 			return nil, err

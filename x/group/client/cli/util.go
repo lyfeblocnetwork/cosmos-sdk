@@ -2,20 +2,18 @@ package cli
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 
-	"cosmossdk.io/x/group"
-
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cosmos/cosmos-sdk/x/group"
 )
 
 // parseDecisionPolicy reads and parses the decision policy.
 func parseDecisionPolicy(cdc codec.Codec, decisionPolicyFile string) (group.DecisionPolicy, error) {
 	if decisionPolicyFile == "" {
-		return nil, errors.New("decision policy is required")
+		return nil, fmt.Errorf("decision policy is required")
 	}
 
 	contents, err := os.ReadFile(decisionPolicyFile)
@@ -55,7 +53,7 @@ func parseMembers(membersFile string) ([]group.MemberRequest, error) {
 
 func execFromString(execStr string) group.Exec {
 	exec := group.Exec_EXEC_UNSPECIFIED
-	if execStr == ExecTry || execStr == "1" {
+	if execStr == ExecTry {
 		exec = group.Exec_EXEC_TRY
 	}
 

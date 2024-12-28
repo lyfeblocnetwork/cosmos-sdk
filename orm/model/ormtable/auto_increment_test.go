@@ -42,8 +42,7 @@ func TestAutoIncrementScenario(t *testing.T) {
 	checkEncodeDecodeEntries(t, table, store.IndexStoreReader())
 }
 
-func runAutoIncrementScenario(t *testing.T, table ormtable.AutoIncrementTable, ctx context.Context) {
-	t.Helper()
+func runAutoIncrementScenario(t *testing.T, table ormtable.AutoIncrementTable, ctx context.Context) { //nolint:revive // ignore linting on testing function signature
 	store, err := testpb.NewExampleAutoIncrementTableTable(table)
 	assert.NilError(t, err)
 

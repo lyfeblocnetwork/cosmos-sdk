@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"math"
 
@@ -40,7 +39,7 @@ type ModuleDB interface {
 	//  func NewAppModule(keeper keeper.Keeper) AppModule {
 	//    return AppModule{HasGenesis: keeper.GenesisHandler()}
 	//  }
-	GenesisHandler() appmodule.HasGenesisAuto
+	GenesisHandler() appmodule.HasGenesis
 
 	private()
 }
@@ -112,7 +111,7 @@ func NewModuleDB(schema *ormv1alpha1.ModuleSchemaDescriptor, options ModuleDBOpt
 		case ormv1alpha1.StorageType_STORAGE_TYPE_MEMORY:
 			service := options.MemoryStoreService
 			if service == nil {
-				return nil, errors.New("missing MemoryStoreService")
+				return nil, fmt.Errorf("missing MemoryStoreService")
 			}
 
 			backendResolver = func(ctx context.Context) (ormtable.ReadBackend, error) {
@@ -125,7 +124,7 @@ func NewModuleDB(schema *ormv1alpha1.ModuleSchemaDescriptor, options ModuleDBOpt
 		case ormv1alpha1.StorageType_STORAGE_TYPE_TRANSIENT:
 			service := options.TransientStoreService
 			if service == nil {
-				return nil, errors.New("missing TransientStoreService")
+				return nil, fmt.Errorf("missing TransientStoreService")
 			}
 
 			backendResolver = func(ctx context.Context) (ormtable.ReadBackend, error) {
@@ -213,7 +212,7 @@ func (m moduleDB) GetTable(message proto.Message) ormtable.Table {
 	return m.tablesByName[message.ProtoReflect().Descriptor().FullName()]
 }
 
-func (m moduleDB) GenesisHandler() appmodule.HasGenesisAuto {
+func (m moduleDB) GenesisHandler() appmodule.HasGenesis {
 	return appModuleGenesisWrapper{m}
 }
 

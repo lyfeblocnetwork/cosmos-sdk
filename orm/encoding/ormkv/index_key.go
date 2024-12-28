@@ -2,7 +2,6 @@ package ormkv
 
 import (
 	"bytes"
-	"errors"
 	"io"
 
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -65,7 +64,7 @@ func NewIndexKeyCodec(prefix []byte, messageType protoreflect.MessageType, index
 func (cdc IndexKeyCodec) DecodeIndexKey(k, _ []byte) (indexFields, primaryKey []protoreflect.Value, err error) {
 	values, err := cdc.DecodeKey(bytes.NewReader(k))
 	// got prefix key
-	if errors.Is(err, io.EOF) {
+	if err == io.EOF {
 		return values, nil, nil
 	} else if err != nil {
 		return nil, nil, err

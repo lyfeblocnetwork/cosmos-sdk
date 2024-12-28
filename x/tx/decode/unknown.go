@@ -33,22 +33,8 @@ func RejectUnknownFieldsStrict(bz []byte, msg protoreflect.MessageDescriptor, re
 // This function traverses inside of messages nested via google.protobuf.Any. It does not do any deserialization of the proto.Message.
 // An AnyResolver must be provided for traversing inside google.protobuf.Any's.
 func RejectUnknownFields(bz []byte, desc protoreflect.MessageDescriptor, allowUnknownNonCriticals bool, resolver protodesc.Resolver) (hasUnknownNonCriticals bool, err error) {
-	// recursion limit with same default as https://github.com/protocolbuffers/protobuf-go/blob/v1.35.2/encoding/protowire/wire.go#L28
-	return doRejectUnknownFields(bz, desc, allowUnknownNonCriticals, resolver, 10_000)
-}
-
-func doRejectUnknownFields(
-	bz []byte,
-	desc protoreflect.MessageDescriptor,
-	allowUnknownNonCriticals bool,
-	resolver protodesc.Resolver,
-	recursionLimit int,
-) (hasUnknownNonCriticals bool, err error) {
 	if len(bz) == 0 {
 		return hasUnknownNonCriticals, nil
-	}
-	if recursionLimit == 0 {
-		return false, errors.New("recursion limit reached")
 	}
 
 	fields := desc.Fields()
@@ -96,17 +82,6 @@ func doRejectUnknownFields(
 		if fieldMessage == nil {
 			continue
 		}
-		// if a message descriptor is a placeholder resolve it using the injected resolver.
-		// this can happen when a descriptor has been registered in the
-		// "google.golang.org/protobuf" resgistry but not in "github.com/cosmos/gogoproto".
-		// fixes: https://github.com/cosmos/cosmos-sdk/issues/22574
-		if fieldMessage.IsPlaceholder() {
-			gogoDesc, err := resolver.FindDescriptorByName(fieldMessage.FullName())
-			if err != nil {
-				return hasUnknownNonCriticals, fmt.Errorf("could not resolve placeholder descriptor: %v: %w", fieldMessage, err)
-			}
-			fieldMessage = gogoDesc.(protoreflect.MessageDescriptor)
-		}
 
 		// consume length prefix of nested message
 		_, o := protowire.ConsumeVarint(fieldBytes)
@@ -125,7 +100,7 @@ func doRejectUnknownFields(
 
 		if fieldMessage.FullName() == anyFullName {
 			// Firstly typecheck types.Any to ensure nothing snuck in.
-			hasUnknownNonCriticalsChild, err := doRejectUnknownFields(fieldBytes, anyDesc, allowUnknownNonCriticals, resolver, recursionLimit-1)
+			hasUnknownNonCriticalsChild, err := RejectUnknownFields(fieldBytes, anyDesc, allowUnknownNonCriticals, resolver)
 			hasUnknownNonCriticals = hasUnknownNonCriticals || hasUnknownNonCriticalsChild
 			if err != nil {
 				return hasUnknownNonCriticals, err
@@ -145,7 +120,7 @@ func doRejectUnknownFields(
 			fieldBytes = a.Value
 		}
 
-		hasUnknownNonCriticalsChild, err := doRejectUnknownFields(fieldBytes, fieldMessage, allowUnknownNonCriticals, resolver, recursionLimit-1)
+		hasUnknownNonCriticalsChild, err := RejectUnknownFields(fieldBytes, fieldMessage, allowUnknownNonCriticals, resolver)
 		hasUnknownNonCriticals = hasUnknownNonCriticals || hasUnknownNonCriticalsChild
 		if err != nil {
 			return hasUnknownNonCriticals, err

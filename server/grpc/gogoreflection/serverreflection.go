@@ -1,40 +1,44 @@
-// Copyright 2016 gRPC authors.
-//
-//  Licensed under the Apache License, Version 2.0 (the "License");
-//  you may not use this file except in compliance with the License.
-//  You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-//  Unless required by applicable law or agreed to in writing, software
-//  distributed under the License is distributed on an "AS IS" BASIS,
-//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-//  See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ *
+ * Copyright 2016 gRPC authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 
-// Package gogoreflection implements server reflection service.
-//
-// The service implemented is defined in:
-// https://github.com/grpc/grpc/blob/master/src/proto/grpc/reflection/v1alpha/reflection.proto.
-//
-// To register server reflection on a gRPC server:
-//
-//	import "google.golang.org/grpc/reflection"
-//
-//	s := grpc.NewServer()
-//	pb.RegisterYourOwnServer(s, &server{})
-//
-//	// Register reflection service on gRPC server.
-//	reflection.Register(s)
-//
-//	s.Serve(lis)
+/*
+Package reflection implements server reflection service.
 
-package gogoreflection
+The service implemented is defined in:
+https://github.com/grpc/grpc/blob/master/src/proto/grpc/reflection/v1alpha/reflection.proto.
+
+To register server reflection on a gRPC server:
+
+	import "google.golang.org/grpc/reflection"
+
+	s := grpc.NewServer()
+	pb.RegisterYourOwnServer(s, &server{})
+
+	// Register reflection service on gRPC server.
+	reflection.Register(s)
+
+	s.Serve(lis)
+*/
+package gogoreflection // import "google.golang.org/grpc/reflection"
 
 import (
 	"bytes"
 	"compress/gzip"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -184,7 +188,7 @@ func fqn(prefix, name string) string {
 // fileDescForType gets the file descriptor for the given type.
 // The given type should be a proto message.
 func (s *serverReflectionServer) fileDescForType(st reflect.Type) (*dpb.FileDescriptorProto, error) {
-	m, ok := reflect.Zero(reflect.PointerTo(st)).Interface().(protoMessage)
+	m, ok := reflect.Zero(reflect.PtrTo(st)).Interface().(protoMessage)
 	if !ok {
 		return nil, fmt.Errorf("failed to create message from type: %v", st)
 	}
@@ -198,12 +202,12 @@ func (s *serverReflectionServer) fileDescForType(st reflect.Type) (*dpb.FileDesc
 func decodeFileDesc(enc []byte) (*dpb.FileDescriptorProto, error) {
 	raw, err := decompress(enc)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decompress enc: %w", err)
+		return nil, fmt.Errorf("failed to decompress enc: %v", err)
 	}
 
 	fd := new(dpb.FileDescriptorProto)
 	if err := proto.Unmarshal(raw, fd); err != nil {
-		return nil, fmt.Errorf("bad descriptor: %w", err)
+		return nil, fmt.Errorf("bad descriptor: %v", err)
 	}
 	return fd, nil
 }
@@ -212,11 +216,11 @@ func decodeFileDesc(enc []byte) (*dpb.FileDescriptorProto, error) {
 func decompress(b []byte) ([]byte, error) {
 	r, err := gzip.NewReader(bytes.NewReader(b))
 	if err != nil {
-		return nil, fmt.Errorf("bad gzipped descriptor: %w", err)
+		return nil, fmt.Errorf("bad gzipped descriptor: %v", err)
 	}
 	out, err := io.ReadAll(r)
 	if err != nil {
-		return nil, fmt.Errorf("bad gzipped descriptor: %w", err)
+		return nil, fmt.Errorf("bad gzipped descriptor: %v", err)
 	}
 	return out, nil
 }
@@ -232,7 +236,7 @@ func typeForName(name string) (reflect.Type, error) {
 }
 
 func fileDescContainingExtension(st reflect.Type, ext int32) (*dpb.FileDescriptorProto, error) {
-	m, ok := reflect.Zero(reflect.PointerTo(st)).Interface().(proto.Message)
+	m, ok := reflect.Zero(reflect.PtrTo(st)).Interface().(proto.Message)
 	if !ok {
 		return nil, fmt.Errorf("failed to create message from type: %v", st)
 	}
@@ -247,7 +251,7 @@ func fileDescContainingExtension(st reflect.Type, ext int32) (*dpb.FileDescripto
 }
 
 func (s *serverReflectionServer) allExtensionNumbersForType(st reflect.Type) ([]int32, error) {
-	m, ok := reflect.Zero(reflect.PointerTo(st)).Interface().(proto.Message)
+	m, ok := reflect.Zero(reflect.PtrTo(st)).Interface().(proto.Message)
 	if !ok {
 		return nil, fmt.Errorf("failed to create message from type: %v", st)
 	}
@@ -376,7 +380,7 @@ func (s *serverReflectionServer) ServerReflectionInfo(stream rpb.ServerReflectio
 	sentFileDescriptors := make(map[string]bool)
 	for {
 		in, err := stream.Recv()
-		if errors.Is(err, io.EOF) {
+		if err == io.EOF {
 			return nil
 		}
 		if err != nil {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 
-	gogogrpcserver "github.com/cosmos/gogoproto/grpc"
 	"google.golang.org/grpc"
 
 	"cosmossdk.io/log"
@@ -15,12 +14,14 @@ import (
 	"github.com/cosmos/cosmos-sdk/server/config"
 	"github.com/cosmos/cosmos-sdk/server/grpc/gogoreflection"
 	reflection "github.com/cosmos/cosmos-sdk/server/grpc/reflection/v2alpha1"
+	"github.com/cosmos/cosmos-sdk/server/types"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	_ "github.com/cosmos/cosmos-sdk/types/tx/amino" // Import amino.proto file for reflection
 )
 
 // NewGRPCServer returns a correctly configured and initialized gRPC server.
 // Note, the caller is responsible for starting the server. See StartGRPCServer.
-func NewGRPCServer(clientCtx client.Context, app interface{ RegisterGRPCServer(gogogrpcserver.Server) }, cfg config.GRPCConfig) (*grpc.Server, error) {
+func NewGRPCServer(clientCtx client.Context, app types.Application, cfg config.GRPCConfig) (*grpc.Server, error) {
 	maxSendMsgSize := cfg.MaxSendMsgSize
 	if maxSendMsgSize == 0 {
 		maxSendMsgSize = config.DefaultGRPCMaxSendMsgSize
@@ -53,6 +54,7 @@ func NewGRPCServer(clientCtx client.Context, app interface{ RegisterGRPCServer(g
 			return modes
 		}(),
 		ChainID:           clientCtx.ChainID,
+		SdkConfig:         sdk.GetConfig(),
 		InterfaceRegistry: clientCtx.InterfaceRegistry,
 	})
 	if err != nil {

@@ -5,7 +5,6 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	queryv1beta1 "cosmossdk.io/api/cosmos/base/query/v1beta1"
-	"cosmossdk.io/core/store"
 	"cosmossdk.io/orm/encoding/encodeutil"
 	"cosmossdk.io/orm/encoding/ormkv"
 	"cosmossdk.io/orm/internal/listinternal"
@@ -198,7 +197,7 @@ func applyCommonIteratorOptions(iterator Iterator, options *listinternal.Options
 type indexIterator struct {
 	index    concreteIndex
 	store    ReadBackend
-	iterator store.Iterator
+	iterator kv.Iterator
 
 	indexValues []protoreflect.Value
 	primaryKey  []protoreflect.Value
